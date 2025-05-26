@@ -216,7 +216,7 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
-        "**Smish Fishing Bot Commands:**
+        "**How to Fish:**
 
 "
         "🎣 /fish – Start fishing (choose your bait)
@@ -244,7 +244,7 @@ def main():
     app.add_handler(CommandHandler("coins", show_coins))
     app.add_handler(CommandHandler("myfish", my_fish))
     app.add_handler(CommandHandler("leaderboard", show_leaderboard))
-    app.add_handler(CommandHandler("help", show_help))
+    app.add_handler(CommandHandler("howtofish", show_help))
     app.add_handler(CallbackQueryHandler(bait_chosen, pattern="^bait_"))
     app.add_handler(CallbackQueryHandler(buy_bait, pattern="^buy_"))
     app.add_handler(CallbackQueryHandler(buy_rod, pattern="^buyrod_"))

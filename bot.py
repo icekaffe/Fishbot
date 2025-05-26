@@ -96,6 +96,8 @@ async def start_fishing(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"You've reached your rod limit! Try again in {remaining} min.")
         return
     bait_inventory = user["inventory"].get("baits", {})
+    if "Worm" not in bait_inventory:
+        bait_inventory["Worm"] = 0
     buttons = [
         [InlineKeyboardButton(f"{bait} ({count})", callback_data=f"bait_{bait}_{user_id}")]
         for bait, count in bait_inventory.items() if count > 0 or bait == "Worm"

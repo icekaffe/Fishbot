@@ -1,5 +1,5 @@
-# Smish Fishing Bot
-# Fully integrated Telegram fishing bot with rods, baits, shop, cooldown, inventory, leaderboard
+# Smish Fishing Bot (Stable Version)
+# Features: rods, bait shop, fish inventory, cooldowns, selling fish for coins
 
 import random
 import json
@@ -17,7 +17,6 @@ leaderboard = {}
 fishing_log = defaultdict(list)
 
 rod_stats = {
-    # failure_mod: reduces bait fail chance by this amount (max 1.0)
     "Basic Rod": {"price": 0, "bonus": 0, "failure_mod": 0.0},
     "Sturdy Rod": {"price": 50, "bonus": 1, "failure_mod": 0.02},
     "Lucky Rod": {"price": 75, "bonus": 1, "failure_mod": 0.05},
@@ -26,12 +25,11 @@ rod_stats = {
 }
 
 bait_stats = {
-    # fail_chance: chance the bait fails to catch a fish
-    "Worm": {"price": 0, "fail_chance": 0.025,"price": 0, "rarity": {"Common": 0.85, "Rare": 0.15}},
-    "Bread": {"price": 5, "fail_chance": 0.1,"price": 5, "rarity": {"Common": 0.6, "Rare": 0.3, "Epic": 0.1}},
-    "Insect": {"price": 8, "fail_chance": 0.1,"price": 8, "rarity": {"Common": 0.4, "Rare": 0.4, "Epic": 0.2}},
-    "Golden Bug": {"price": 15, "fail_chance": 0.05,"price": 15, "rarity": {"Common": 0.2, "Rare": 0.5, "Epic": 0.3}},
-    "Mystic Bait": {"price": 25, "fail_chance": 0,"price": 25, "rarity": {"Common": 0.05, "Rare": 0.45, "Epic": 0.45, "ultra_bonus": 0.05}}
+    "Worm": {"price": 0, "fail_chance": 0.15, "rarity": {"Common": 0.85, "Rare": 0.15}},
+    "Bread": {"price": 5, "fail_chance": 0.1, "rarity": {"Common": 0.6, "Rare": 0.3, "Epic": 0.1}},
+    "Insect": {"price": 8, "fail_chance": 0.05, "rarity": {"Common": 0.4, "Rare": 0.4, "Epic": 0.2}},
+    "Golden Bug": {"price": 15, "fail_chance": 0.02, "rarity": {"Common": 0.2, "Rare": 0.5, "Epic": 0.3}},
+    "Mystic Bait": {"price": 25, "fail_chance": 0.0, "rarity": {"Common": 0.05, "Rare": 0.45, "Epic": 0.45, "ultra_bonus": 0.05}}
 }
 
 rarity_multipliers = {"Common": 1, "Rare": 2, "Epic": 5}
@@ -40,16 +38,28 @@ ultra_coin_bonus = 10
 
 fish_data = {
     "Common": {
-        "normal": [{"species": "Carp", "emoji": "\U0001F41F", "min_weight": 1, "max_weight": 3, "min_length": 30, "max_length": 50}],
+        "normal": [
+            {"species": "Carp", "emoji": "🐟", "min_weight": 1, "max_weight": 3, "min_length": 30, "max_length": 50},
+            {"species": "Bluegill", "emoji": "🐠", "min_weight": 0.5, "max_weight": 2, "min_length": 20, "max_length": 35}
+        ],
         "ultra": []
     },
     "Rare": {
-        "normal": [{"species": "Pike", "emoji": "\U0001F408", "min_weight": 3, "max_weight": 6, "min_length": 50, "max_length": 80}],
-        "ultra": [{"species": "Golden Eel", "emoji": "\u26A1", "min_weight": 4, "max_weight": 6, "min_length": 60, "max_length": 70}]
+        "normal": [
+            {"species": "Pike", "emoji": "🐊", "min_weight": 3, "max_weight": 6, "min_length": 50, "max_length": 80},
+            {"species": "Catfish", "emoji": "😼", "min_weight": 4, "max_weight": 7, "min_length": 55, "max_length": 85}
+        ],
+        "ultra": [
+            {"species": "Golden Eel", "emoji": "⚡", "min_weight": 4, "max_weight": 6, "min_length": 60, "max_length": 70}
+        ]
     },
     "Epic": {
-        "normal": [{"species": "Jewel Fish", "emoji": "\U0001F48E", "min_weight": 1, "max_weight": 2, "min_length": 20, "max_length": 35}],
-        "ultra": [{"species": "Leviathan", "emoji": "\U0001F409", "min_weight": 10, "max_weight": 15, "min_length": 150, "max_length": 200}]
+        "normal": [
+            {"species": "Jewel Fish", "emoji": "💎", "min_weight": 1, "max_weight": 2, "min_length": 20, "max_length": 35}
+        ],
+        "ultra": [
+            {"species": "Leviathan", "emoji": "🐉", "min_weight": 10, "max_weight": 15, "min_length": 150, "max_length": 200}
+        ]
     }
 }
 
@@ -57,7 +67,8 @@ def choose_rarity(prob_dict):
     rand = random.random()
     cumulative = 0
     for rarity, prob in prob_dict.items():
-        if rarity == "ultra_bonus": continue
+        if rarity == "ultra_bonus":
+            continue
         cumulative += prob
         if rand < cumulative:
             return rarity
@@ -86,6 +97,7 @@ def save_leaderboard():
     with open(LEADERBOARD_FILE, "w") as f:
         json.dump(leaderboard, f)
 
+# Function definitions (start_fishing, bait_chosen, shop, buy_bait, etc.
 async def start_fishing(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     name = update.message.from_user.first_name
@@ -112,13 +124,16 @@ async def bait_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     parts = query.data.split("_")
     bait = parts[1]
     user_id = int(parts[2])
+    if query.from_user.id != user_id:
+        await query.answer("This isn't your fishing action!", show_alert=True)
+        return
     user = get_user(user_id, query.from_user.first_name)
+    bait_info = bait_stats[bait]
     if bait != "Worm" and user["inventory"]["baits"].get(bait, 0) <= 0:
         await query.edit_message_text("You're out of that bait!")
         return
-    if bait != "Worm": user["inventory"]["baits"][bait] -= 1
-    fishing_log[user_id].append(time.time())
-    bait_info = bait_stats[bait]
+    if bait != "Worm":
+        user["inventory"]["baits"][bait] -= 1
     rod = user.get("rod", "Basic Rod")
     failure_mod = rod_stats.get(rod, {}).get("failure_mod", 0)
     effective_fail = max(0, bait_info.get("fail_chance", 0) - failure_mod)
@@ -129,8 +144,9 @@ async def bait_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(msg)
         save_leaderboard()
         return
+    fishing_log[user_id].append(time.time())
     rarity = choose_rarity(bait_info["rarity"])
-    is_ultra = random.random() < (0.01 + bait_stats[bait]["rarity"].get("ultra_bonus", 0))
+    is_ultra = random.random() < (0.01 + bait_info["rarity"].get("ultra_bonus", 0))
     fish_list = fish_data[rarity]["ultra"] if is_ultra else fish_data[rarity]["normal"]
     fish = random.choice(fish_list)
     weight = round(random.uniform(fish["min_weight"], fish["max_weight"]), 2)
@@ -140,13 +156,15 @@ async def bait_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_points = base_points + bonus
     coin_value = max(1, rarity_sell_values[rarity] + (ultra_coin_bonus if is_ultra else 0))
     user["points"] += total_points
-        user["inventory"].setdefault("fish", []).append({"species": fish["species"], "rarity": rarity, "emoji": fish["emoji"], "value": coin_value})
+    user["inventory"].setdefault("fish", []).append({
+        "species": fish["species"], "rarity": rarity,
+        "emoji": fish["emoji"], "value": coin_value
+    })
     save_leaderboard()
     message = f"You used {bait} and caught a {rarity} {fish['emoji']} {fish['species']}!\nWeight: {weight} kg | Length: {length} cm\nPoints: {total_points}"
-    if is_ultra: message += f"
-Trophy catch! +{bonus} pts!"
+    if is_ultra:
+        message += f"\nTrophy catch! +{bonus} pts!"
     await query.edit_message_text(message)
-
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = get_user(update.message.from_user.id, update.message.from_user.first_name)
     user_id = str(update.message.from_user.id)
@@ -161,22 +179,17 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buttons.extend(rod_buttons)
     if user["inventory"].get("fish"):
         buttons.append([InlineKeyboardButton(f"Sell all fish ({len(user['inventory']['fish'])})", callback_data=f"sellfish_{user_id}")])
-    shop_text = f"You currently have the *{user['rod']}* equipped (+{rod_stats[user['rod']]['bonus']} fish/hr).
-You have *{user['coins']}* coins."
+    shop_text = f"You currently have the *{user['rod']}* equipped (+{rod_stats[user['rod']]['bonus']} fish/hr).\nYou have *{user['coins']}* coins."
     await update.message.reply_text(shop_text, parse_mode="Markdown")
     await update.message.reply_text("Shop options:", reply_markup=InlineKeyboardMarkup(buttons))
 
 async def buy_bait(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    parts = query.data.split("_")
-    bait, uid = parts[1], int(parts[2])
-
+    bait, uid = query.data.split("_")[1], int(query.data.split("_")[2])
     if query.from_user.id != uid:
         await query.answer("This isn't your shop menu!", show_alert=True)
         return
-    await query.answer()
-    bait, uid = query.data.split("_")[1], int(query.data.split("_")[2])
     user = get_user(uid, query.from_user.first_name)
     price = bait_stats[bait]["price"]
     if user["coins"] < price:
@@ -190,14 +203,10 @@ async def buy_bait(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def buy_rod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    parts = query.data.split("_")
-    rod, uid = parts[1], int(parts[2])
-
+    rod, uid = query.data.split("_")[1], int(query.data.split("_")[2])
     if query.from_user.id != uid:
         await query.answer("This isn't your rod menu!", show_alert=True)
         return
-    await query.answer()
-    rod, uid = query.data.split("_")[1], int(query.data.split("_")[2])
     user = get_user(uid, query.from_user.first_name)
     cost = rod_stats[rod]["price"]
     if user["coins"] < cost:
@@ -211,14 +220,10 @@ async def buy_rod(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def sell_fish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    parts = query.data.split("_")
-    uid = int(parts[1])
-
+    uid = int(query.data.split("_")[1])
     if query.from_user.id != uid:
         await query.answer("This isn't your inventory!", show_alert=True)
         return
-    await query.answer()
-    uid = int(query.data.split("_")[1])
     user = get_user(uid, query.from_user.first_name)
     fish_list = user["inventory"].get("fish", [])
     total = sum(f["value"] for f in fish_list)
@@ -233,8 +238,7 @@ async def my_fish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not fish_list:
         await update.message.reply_text("You have no fish.")
         return
-    text = "
-".join([f"{f['emoji']} {f['species']} ({f['rarity']}) – worth {f['value']} coins" for f in fish_list])
+    text = "\n".join([f"{f['emoji']} {f['species']} ({f['rarity']}) – worth {f['value']} coins" for f in fish_list])
     await update.message.reply_text(f"**Your Fish Inventory:**\n{text}", parse_mode="Markdown")
 
 async def show_coins(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -243,7 +247,7 @@ async def show_coins(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sorted_board = sorted(leaderboard.values(), key=lambda x: x["points"], reverse=True)
-    titles = {1: "\U0001F3C6 Champion", 2: "\U0001F948 Master", 3: "\U0001F949 Pro"}
+    titles = {1: "🏆 Champion", 2: "🥈 Master", 3: "🥉 Pro"}
     text = "**Leaderboard:**\n"
     for i, entry in enumerate(sorted_board[:10], 1):
         title = titles.get(i, "")
@@ -280,3 +284,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

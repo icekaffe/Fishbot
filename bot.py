@@ -214,6 +214,27 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{i}. {entry['name']}: {entry['points']} pts {title}\n"
     await update.message.reply_text(text, parse_mode="Markdown")
 
+async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    help_text = (
+        "**Smish Fishing Bot Commands:**
+
+"
+        "🎣 /fish – Start fishing (choose your bait)
+"
+        "🐟 /myfish – View your caught fish
+"
+        "💰 /sellfish – Sell all fish (via shop button)
+"
+        "🛒 /shop – Buy bait, rods, and sell fish
+"
+        "🪙 /coins – Check your coin balance
+"
+        "🏆 /leaderboard – Top players with titles
+"
+        "❓ /help – Show this help message"
+    )
+    await update.message.reply_text(help_text, parse_mode="Markdown")
+
 def main():
     load_leaderboard()
     token = os.getenv("YOUR_BOT_TOKEN") or "<YOUR_BOT_TOKEN_HERE>"
@@ -223,6 +244,7 @@ def main():
     app.add_handler(CommandHandler("coins", show_coins))
     app.add_handler(CommandHandler("myfish", my_fish))
     app.add_handler(CommandHandler("leaderboard", show_leaderboard))
+    app.add_handler(CommandHandler("help", show_help))
     app.add_handler(CallbackQueryHandler(bait_chosen, pattern="^bait_"))
     app.add_handler(CallbackQueryHandler(buy_bait, pattern="^buy_"))
     app.add_handler(CallbackQueryHandler(buy_rod, pattern="^buyrod_"))

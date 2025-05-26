@@ -17,19 +17,21 @@ leaderboard = {}
 fishing_log = defaultdict(list)
 
 rod_stats = {
-    "Basic Rod": {"price": 0, "bonus": 0},
-    "Sturdy Rod": {"price": 50, "bonus": 1},
-    "Lucky Rod": {"price": 75, "bonus": 1},
-    "Mystic Rod": {"price": 100, "bonus": 1},
-    "Golden Rod": {"price": 150, "bonus": 2}
+    # failure_mod: reduces bait fail chance by this amount (max 1.0)
+    "Basic Rod": {"price": 0, "bonus": 0, "failure_mod": 0.0},
+    "Sturdy Rod": {"price": 50, "bonus": 1, "failure_mod": 0.02},
+    "Lucky Rod": {"price": 75, "bonus": 1, "failure_mod": 0.05},
+    "Mystic Rod": {"price": 100, "bonus": 1, "failure_mod": 0.08},
+    "Golden Rod": {"price": 150, "bonus": 2, "failure_mod": 0.1}
 }
 
 bait_stats = {
-    "Worm": {"price": 0, "rarity": {"Common": 0.85, "Rare": 0.15}},
-    "Bread": {"price": 5, "rarity": {"Common": 0.6, "Rare": 0.3, "Epic": 0.1}},
-    "Insect": {"price": 8, "rarity": {"Common": 0.4, "Rare": 0.4, "Epic": 0.2}},
-    "Golden Bug": {"price": 15, "rarity": {"Common": 0.2, "Rare": 0.5, "Epic": 0.3}},
-    "Mystic Bait": {"price": 25, "rarity": {"Common": 0.05, "Rare": 0.45, "Epic": 0.45, "ultra_bonus": 0.05}}
+    # fail_chance: chance the bait fails to catch a fish
+    "Worm": {"price": 0, "fail_chance": 0.025,"price": 0, "rarity": {"Common": 0.85, "Rare": 0.15}},
+    "Bread": {"price": 5, "fail_chance": 0.1,"price": 5, "rarity": {"Common": 0.6, "Rare": 0.3, "Epic": 0.1}},
+    "Insect": {"price": 8, "fail_chance": 0.1,"price": 8, "rarity": {"Common": 0.4, "Rare": 0.4, "Epic": 0.2}},
+    "Golden Bug": {"price": 15, "fail_chance": 0.05,"price": 15, "rarity": {"Common": 0.2, "Rare": 0.5, "Epic": 0.3}},
+    "Mystic Bait": {"price": 25, "fail_chance": 0,"price": 25, "rarity": {"Common": 0.05, "Rare": 0.45, "Epic": 0.45, "ultra_bonus": 0.05}}
 }
 
 rarity_multipliers = {"Common": 1, "Rare": 2, "Epic": 5}
@@ -116,7 +118,18 @@ async def bait_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if bait != "Worm": user["inventory"]["baits"][bait] -= 1
     fishing_log[user_id].append(time.time())
-    rarity = choose_rarity(bait_stats[bait]["rarity"])
+    bait_info = bait_stats[bait]
+    rod = user.get("rod", "Basic Rod")
+    failure_mod = rod_stats.get(rod, {}).get("failure_mod", 0)
+    effective_fail = max(0, bait_info.get("fail_chance", 0) - failure_mod)
+    if random.random() < effective_fail:
+        msg = f"The fish got away! Your {bait} was wasted."
+        if bait == "Worm":
+            msg = "The fish escaped… but at least the worm was free."
+        await query.edit_message_text(msg)
+        save_leaderboard()
+        return
+    rarity = choose_rarity(bait_info["rarity"])
     is_ultra = random.random() < (0.01 + bait_stats[bait]["rarity"].get("ultra_bonus", 0))
     fish_list = fish_data[rarity]["ultra"] if is_ultra else fish_data[rarity]["normal"]
     fish = random.choice(fish_list)
@@ -125,13 +138,13 @@ async def bait_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     base_points = int(weight * rarity_multipliers[rarity])
     bonus = 25 if is_ultra else 0
     total_points = base_points + bonus
-    coin_value = rarity_sell_values[rarity] + (ultra_coin_bonus if is_ultra else 0)
+    coin_value = max(1, rarity_sell_values[rarity] + (ultra_coin_bonus if is_ultra else 0))
     user["points"] += total_points
-    user["coins"] += coin_value
-    user["inventory"].setdefault("fish", []).append({"species": fish["species"], "rarity": rarity, "emoji": fish["emoji"], "value": coin_value})
+        user["inventory"].setdefault("fish", []).append({"species": fish["species"], "rarity": rarity, "emoji": fish["emoji"], "value": coin_value})
     save_leaderboard()
-    message = f"You used {bait} and caught a {rarity} {fish['emoji']} {fish['species']}!\nWeight: {weight} kg | Length: {length} cm\nPoints: {total_points} | Coins: {coin_value}"
-    if is_ultra: message += f"\nTrophy catch! +{bonus} pts, +{ultra_coin_bonus} coins!"
+    message = f"You used {bait} and caught a {rarity} {fish['emoji']} {fish['species']}!\nWeight: {weight} kg | Length: {length} cm\nPoints: {total_points}"
+    if is_ultra: message += f"
+Trophy catch! +{bonus} pts!"
     await query.edit_message_text(message)
 
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -148,12 +161,20 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buttons.extend(rod_buttons)
     if user["inventory"].get("fish"):
         buttons.append([InlineKeyboardButton(f"Sell all fish ({len(user['inventory']['fish'])})", callback_data=f"sellfish_{user_id}")])
-    shop_text = f"You currently have the *{user['rod']}* equipped (+{rod_stats[user['rod']]['bonus']} fish/hr)."
+    shop_text = f"You currently have the *{user['rod']}* equipped (+{rod_stats[user['rod']]['bonus']} fish/hr).
+You have *{user['coins']}* coins."
     await update.message.reply_text(shop_text, parse_mode="Markdown")
     await update.message.reply_text("Shop options:", reply_markup=InlineKeyboardMarkup(buttons))
 
 async def buy_bait(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    await query.answer()
+    parts = query.data.split("_")
+    bait, uid = parts[1], int(parts[2])
+
+    if query.from_user.id != uid:
+        await query.answer("This isn't your shop menu!", show_alert=True)
+        return
     await query.answer()
     bait, uid = query.data.split("_")[1], int(query.data.split("_")[2])
     user = get_user(uid, query.from_user.first_name)
@@ -169,6 +190,13 @@ async def buy_bait(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def buy_rod(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    parts = query.data.split("_")
+    rod, uid = parts[1], int(parts[2])
+
+    if query.from_user.id != uid:
+        await query.answer("This isn't your rod menu!", show_alert=True)
+        return
+    await query.answer()
     rod, uid = query.data.split("_")[1], int(query.data.split("_")[2])
     user = get_user(uid, query.from_user.first_name)
     cost = rod_stats[rod]["price"]
@@ -182,6 +210,13 @@ async def buy_rod(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def sell_fish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    await query.answer()
+    parts = query.data.split("_")
+    uid = int(parts[1])
+
+    if query.from_user.id != uid:
+        await query.answer("This isn't your inventory!", show_alert=True)
+        return
     await query.answer()
     uid = int(query.data.split("_")[1])
     user = get_user(uid, query.from_user.first_name)
@@ -198,7 +233,8 @@ async def my_fish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not fish_list:
         await update.message.reply_text("You have no fish.")
         return
-    text = "\n".join([f"{f['emoji']} {f['species']} ({f['rarity']}) – {f['value']} coins" for f in fish_list])
+    text = "
+".join([f"{f['emoji']} {f['species']} ({f['rarity']}) – worth {f['value']} coins" for f in fish_list])
     await update.message.reply_text(f"**Your Fish Inventory:**\n{text}", parse_mode="Markdown")
 
 async def show_coins(update: Update, context: ContextTypes.DEFAULT_TYPE):

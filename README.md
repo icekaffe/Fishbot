@@ -1,0 +1,2 @@
+# Fishbot
+Fishing bot game

@@ -215,11 +215,17 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode="Markdown")
 
 async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    help_text = (
-        "**Smish Fishing Bot Commands:**
+    help_text = ("""
+**Smish Fishing Bot Commands:**
 
-"
-        "🎣 /fish – Start fishing (choose your bait)
+🎣 /fish – Start fishing (choose your bait)
+🐟 /myfish – View your caught fish
+💰 /sellfish – Sell all fish (via shop button)
+🛒 /shop – Buy bait, rods, and sell fish
+🪙 /coins – Check your coin balance
+🏆 /leaderboard – Top players with titles
+❓ /help – Show this help message
+""")
 "
         "🐟 /myfish – View your caught fish
 "
